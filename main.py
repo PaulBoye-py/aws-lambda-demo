@@ -2,10 +2,24 @@ import json
 
 def lambda_handler(event, context):
     # Extract query parameters
-    name = event.get('queryStringParameters', {}).get('name', 'Guest')
-    age = event.get('queryStringParameters', {}).get('age', '0')
-    
-    # Validate the age input
+    query_params = event.get('queryStringParameters', {})
+    name = query_params.get('name', None)
+    age = query_params.get('age', None)
+
+    # Extract body parameters if query parameters are not provided
+    if not name or not age:
+        body = event.get('body', '{}')
+        try:
+            body_data = json.loads(body)
+            name = body_data.get('name', name or 'Guest')
+            age = body_data.get('age', age or '0')
+        except json.JSONDecodeError:
+            return {
+                'statusCode': 400,
+                'body': json.dumps({'error': 'Invalid JSON payload.'})
+            }
+
+    # Validate age input
     try:
         age = int(age)
     except ValueError:
