@@ -1,183 +1,198 @@
-# **Voting Eligibility Checker - AWS Lambda**
+# Voting Eligibility Checker - AWS Lambda with S3 Integration
+
+## Overview
+
+This Lambda function determines if a user is eligible to vote based on their age. It also saves the result of each eligibility check to an S3 bucket. The function supports input via query parameters or a JSON payload in the request body.
+
+### Key Features
+
+- Checks if a user meets the minimum voting age (18 years).
+- Provides a customized response based on the user's eligibility.
+- Saves eligibility results to an Amazon S3 bucket for future reference.
 
 ---
 
-## **Overview**
+## Requirements
 
-This project implements a serverless application using AWS Lambda to check if a person is eligible to vote. It takes `name` and `age` as query parameters through an HTTP request and responds with a personalized message indicating whether the person can vote.
-
----
-
-### **Features**
-
-- **Input Parameters:** Accepts `name` and `age` as query parameters.
-- **Dynamic Responses:** Generates personalized eligibility messages.
-- **Error Handling:** Validates input and returns appropriate error messages.
-- **Serverless and Scalable:** Uses AWS Lambda for scalable, cost-efficient deployment.
+- **AWS Lambda**: Used to deploy and execute the function.
+- **Amazon S3**: Stores the results of the eligibility checks.
+- **Python 3.8 or above**: Runtime for the function.
 
 ---
 
-### **Technologies**
+## Environment Variables
 
-- **AWS Lambda:** Serverless compute service.
-- **AWS API Gateway:** Trigger for handling HTTP requests.
-- **Python 3.x:** Language for implementing the Lambda function.
-- **JSON:** Format for input/output data.
+The function uses the following environment variables:
 
----
-
-### **How It Works**
-
-1. **Input:**  
-   - **name** (string): The person's name (e.g., "John"). Default is `"Guest"`.  
-   - **age** (integer): The person's age (e.g., 25).  
-
-2. **Logic:**
-   - If the `age` is 18 or above, the response indicates the person is eligible to vote.
-   - If the `age` is less than 18, the response shows the number of years left until eligibility.
-   - If the `age` is invalid or non-numeric, an error message is returned.
-
-3. **Output:**  
-   - A JSON object with a `message` field containing the personalized result.
+- **`S3_BUCKET`**: Name of the S3 bucket where results will be saved. Defaults to `voting-eligibility-results`.
 
 ---
 
-### **API Endpoints**
+## How It Works
 
-#### HTTP GET Request
+1. **Input Handling**  
+   - Extracts user data (`name` and `age`) from query parameters or JSON payload in the request body.
+   - Defaults `name` to "Guest" and `age` to "0" if not provided.
 
-**URL:**  
-`https://<api-id>.execute-api.<region>.amazonaws.com/default/voting-eligibility-check`
+2. **Eligibility Check**  
+   - Validates the age input to ensure it is numeric.
+   - Determines voting eligibility based on whether the user's age is 18 or older.
 
-**Query Parameters:**
+3. **Save Results to S3**  
+   - Constructs a JSON object containing the user's name, age, eligibility message, and a timestamp.
+   - Stores the result in an S3 bucket under the key structure: `voting_results/<timestamp>_<name>.json`.
 
-- `name`: The name of the person (optional, default: "Guest").
-- `age`: The age of the person (required).
+4. **Response**  
+   - Returns an HTTP response with the eligibility message.
 
 ---
 
-### **Sample Requests and Responses**
+## Deployment Instructions
 
-#### **1. Eligible to Vote**
+### Prerequisites
 
-**Request:**  
-`GET /voting-eligibility-check?name=John&age=20`
+1. **Amazon S3 Bucket**: Create an S3 bucket and note its name.
+2. **IAM Role for Lambda**: Ensure the Lambda execution role has permissions to write to the S3 bucket. Example policy:
 
-**Response:**
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": "s3:PutObject",
+         "Resource": "arn:aws:s3:::<bucket-name>/voting_results/*"
+       }
+     ]
+   }
+   ```
 
-```json
-{
-  "message": "Hello, John! You are eligible to vote in the election."
-}
+### Deploy the Function
+
+1. **Create a Lambda Function**:
+   - Runtime: Python 3.8 or above.
+   - Handler: `lambda_function.lambda_handler`.
+
+2. **Set Environment Variables**:
+   - `S3_BUCKET`: The name of your S3 bucket.
+
+3. **Upload the Code**:
+   - Zip the code file and upload it to AWS Lambda.
+
+4. **Test the Function**:
+   - Use the following sample event:
+
+     ```json
+     {
+       "queryStringParameters": {
+         "name": "Paul",
+         "age": "20"
+       }
+     }
+     ```
+
+---
+
+## API Example Usage
+
+### Input
+
+- **HTTP Method**: POST
+- **Endpoint**: `<API Gateway URL>`
+- **Query Parameters**:
+  - `name`: User's name (optional, default: "Guest").
+  - `age`: User's age (optional, default: 0).
+
+- **Request Body (if query parameters are not provided)**:
+
+  ```json
+  {
+    "name": "Paul",
+    "age": 20
+  }
+  ```
+
+### Output
+
+- **200 OK**:
+
+  ```json
+  {
+    "message": "Hello, Paul! You are eligible to vote in the election."
+  }
+  ```
+
+- **400 Bad Request** (Invalid Age):
+
+  ```json
+  {
+    "error": "Invalid age. Please provide a numeric value."
+  }
+  ```
+
+- **500 Internal Server Error** (S3 Failure):
+
+  ```json
+  {
+    "error": "Failed to save result to S3: <error message>"
+  }
+  ```
+
+---
+
+## Directory Structure
+
+```bash
+.
+├── lambda_function.py  # Main function file
+└── requirements.txt    # Python dependencies (if applicable)
 ```
 
 ---
 
-#### **2. Not Eligible to Vote**
+## S3 Bucket Policy Template
 
-**Request:**  
-`GET /voting-eligibility-check?name=Sarah&age=16`
+To grant Lambda permission to write to the S3 bucket, use the following S3 bucket policy:
 
-**Response:**
-
-```json
-{
-  "message": "Hi, Sarah! You are not eligible to vote yet. You need to wait 2 more year(s)."
-}
-```
-
----
-
-#### **3. Invalid Age**
-
-**Request:**  
-`GET /voting-eligibility-check?name=Paul&age=abc`
-
-**Response:**
+### **S3 Bucket Policy**
 
 ```json
 {
-  "error": "Invalid age. Please provide a numeric value."
+  "Id": "Policy1737224295164",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "Stmt1737224291425",
+      "Action": "s3:*",
+      "Effect": "Allow",
+      "Resource": "arn:aws:s3:::<your-bucket-name>/voting_results/*",
+      "Principal": "*"
+    }
+  ]
 }
 ```
 
----
+### **Explanation**
 
-### **Deployment Instructions**
+- **`Action`**: Grants the `s3:*` action, allowing the Lambda function to interact with the specified S3 bucket.
+- **`Resource`**: Specifies the path where the Lambda function can put objects (`voting_results/*`).
+- **`Principal`**: The `"*"` value means this policy is not restricted by any particular principal, which is standard when granting access to a service (like Lambda).
 
-#### **1. Set Up AWS Lambda**
+### **Ensure Public Access is Not Blocked**
 
-1. Open the AWS Lambda Console and create a new function.
-2. Choose **Author from scratch** and configure:
-   - **Function Name:** `voting-eligibility-check`.
-   - **Runtime:** Python 3.x.
-3. Add an execution role with basic Lambda permissions.
-4. Deploy the Python code in the function editor.
+- When configuring the S3 bucket, make sure **public access is not blocked** to allow the Lambda function to write results into the bucket.
+- To maintain security, you can restrict access further by specifying the AWS account or Lambda function ARN in the `Principal` section.
 
 ---
 
-#### **2. Add an API Gateway Trigger**
+## Improvements
 
-1. Go to the **Function Overview** section in the Lambda console.
-2. Click **Add Trigger** and select **API Gateway**.
-3. Configure the trigger:
-   - API type: `HTTP API`.
-   - Security: `Open`.
-4. Save and note the generated API Gateway URL.
+- Add authentication to secure the API.
+- Extend the functionality to handle additional demographics.
+- Configure retries or dead-letter queues for S3 failures.
 
 ---
 
-#### **3. Test the Endpoint**
+## License
 
-Use a tool like Postman, cURL, or a web browser to make HTTP GET requests to the API Gateway URL.
-
----
-
-### **Code Explanation**
-
-#### `lambda_handler(event, context)`
-
-The main entry point for the Lambda function.
-
-- **Input:** The `event` object contains query parameters.
-- **Output:** Returns a JSON object with a status code and message.
-
-#### **Logic Breakdown:**
-
-1. Extract `name` and `age` from the `queryStringParameters`.
-2. Validate `age` as a numeric value.
-3. Compute eligibility:
-   - If `age >= 18`: Return an eligible message.
-   - Else: Calculate and return years left.
-4. Handle errors for invalid input.
-
----
-
-### **Customization**
-
-You can customize the responses by modifying the `message` values in the function.
-
----
-
-### **Error Handling**
-
-- **Invalid Input:** If `age` is not numeric, the function returns an HTTP 400 response with an error message.
-- **Missing Parameters:** Defaults are used for missing `name` and `age`.
-
----
-
-### **Future Enhancements**
-
-- Add localization for responses in different languages.
-- Integrate with a database to log user queries.
-- Add authentication for API requests.
-
----
-
-### **License**
-
-This project is licensed under the MIT License. You are free to use and modify it.
-
----
-
-Enjoy building your **Serverless Revolution!**
+This project is licensed under the MIT License.

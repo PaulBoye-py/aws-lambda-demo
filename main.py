@@ -1,4 +1,13 @@
 import json
+import boto3
+import os
+from datetime import datetime
+
+# Initialize S3 client
+s3_client = boto3.client('s3')
+
+# Environment variable for bucket name
+BUCKET_NAME = os.environ.get('S3_BUCKET', 'voting-eligibility-results')
 
 def lambda_handler(event, context):
     # Extract query parameters
@@ -34,6 +43,29 @@ def lambda_handler(event, context):
     else:
         years_left = 18 - age
         message = f"Hi, {name}! You are not eligible to vote yet. You need to wait {years_left} more year(s)."
+
+    # Save result to S3
+    timestamp = datetime.utcnow().strftime('%Y-%m-%d_%H-%M-%S')
+    result_key = f"voting_results/{timestamp}_{name}.json"
+    result_data = {
+        'name': name,
+        'age': age,
+        'message': message,
+        'timestamp': timestamp
+    }
+
+    try:
+        s3_client.put_object(
+            Bucket=BUCKET_NAME,
+            Key=result_key,
+            Body=json.dumps(result_data),
+            ContentType='application/json'
+        )
+    except Exception as e:
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'error': f"Failed to save result to S3: {str(e)}"})
+        }
 
     # Return response
     return {
